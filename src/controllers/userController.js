@@ -1,4 +1,5 @@
 import { User, Match, Message, winston, ApiError, ApiResponse, asyncHandler } from '../lib.js';
+import { uploadToCloudinary } from '../utils/cloudinary.js';
 
 /**
  * @swagger
@@ -108,6 +109,104 @@ export const getProfiles = asyncHandler(async (req) => {
   currentUser.views += 1;
   await currentUser.save();
   return new ApiResponse(200, users, 'Profiles retrieved successfully');
+});
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               bio: { type: string, maxLength: 100 }
+ *               prompt: { type: string, maxLength: 50 }
+ *               lat: { type: number }
+ *               lng: { type: number }
+ *               age: { type: number, minimum: 18 }
+ *               gender: { type: string, enum: [male, female, nonbinary] }
+ *               interests: { type: string }
+ *               preferences: { type: string, enum: [long-term, casual, intimacy] }
+ *               ethnicity: { type: string }
+ *               education: { type: string }
+ *               smoking: { type: boolean }
+ *               photo: { type: string, format: binary }
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       400:
+ *         description: Validation error
+ */
+export const updateProfile = asyncHandler(async (req) => {
+  const user = await User.findById(req.userId);
+  if (!user) throw new ApiError(404, 'User not found');
+
+  const { name, bio, prompt, lat, lng, age, gender, interests, preferences, ethnicity, education, smoking } = req.body;
+  const file = req.file;
+
+  if (name) user.name = name;
+  if (bio) user.bio = bio;
+  if (prompt) user.prompt = prompt;
+  if (lat && lng) user.location = { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] };
+  if (age) user.age = parseInt(age);
+  if (gender) user.gender = gender;
+  if (interests) user.interests = interests.split(',');
+  if (preferences) user.preferences = preferences;
+  if (ethnicity) user.ethnicity = ethnicity;
+  if (education) user.education = education;
+  if (smoking !== undefined) user.smoking = smoking === 'true';
+  if (file) {
+    const photoURL = await uploadToCloudinary(file.path, { public_id: `${user.email}-${Date.now()}` });
+    user.photoURL = photoURL;
+  }
+
+  await user.save();
+  winston.info(`Profile updated for user ${req.userId}`);
+  return new ApiResponse(200, user, 'Profile updated successfully');
+});
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   delete:
+ *     summary: Delete user profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       404:
+ *         description: User not found
+ */
+export const deleteProfile = asyncHandler(async (req) => {
+  const user = await User.findById(req.userId);
+  if (!user) throw new ApiError(404, 'User not found');
+
+  await Message.deleteMany({ $or: [{ sender: req.userId }, { receiver: req.userId }] });
+  await Match.deleteMany({ users: req.userId });
+  await Confession.deleteMany({ sender: req.userId });
+  await SafetyReport.deleteMany({ $or: [{ userId: req.userId }, { reportedUserId: req.userId }] });
+
+  await User.deleteOne({ _id: req.userId });
+  winston.info(`Profile deleted for user ${req.userId}`);
+  return new ApiResponse(200, null, 'Profile deleted successfully');
 });
 
 /**

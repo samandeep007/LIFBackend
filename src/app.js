@@ -48,6 +48,8 @@ app.post('/api/auth/register', upload.single('photo'), authController.register);
 app.post('/api/auth/login', authController.login);
 
 app.get('/api/users/profiles', authMiddleware, userController.getProfiles);
+app.put('/api/users/profile', upload.single('photo'), authMiddleware, userController.updateProfile);
+app.delete('/api/users/profile', authMiddleware, userController.deleteProfile);
 app.post('/api/users/swipe', authMiddleware, userController.swipe);
 app.get('/api/users/stats', authMiddleware, userController.getStats);
 app.post('/api/users/undo', authMiddleware, userController.undoSwipe);

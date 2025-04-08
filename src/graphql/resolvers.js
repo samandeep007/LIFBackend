@@ -12,6 +12,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+const handleError = (err) => {
+  if (err instanceof ApiError) {
+    return { statusCode: err.statusCode, success: false, message: err.message, data: null };
+  }
+  return { statusCode: 500, success: false, message: 'Internal server error', data: null };
+};
+
 export default {
   Query: {
     profiles: async (_, args, context) => {
@@ -62,6 +69,24 @@ export default {
         context.req.body = args;
         await validateInput('login')(context.req, {}, () => {});
         return await authController.login(context.req);
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    updateProfile: async (_, args, context) => {
+      try {
+        await new Promise((resolve) => upload.single('photo')(context.req, {}, resolve));
+        const { userId } = await authMiddleware(context.req);
+        context.req.body = args;
+        return await userController.updateProfile({ userId, ...context.req });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    deleteProfile: async (_, __, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await userController.deleteProfile({ userId });
       } catch (err) {
         return handleError(err);
       }
@@ -153,6 +178,7 @@ export default {
   Subscription: {
     messageReceived: {
       subscribe: () => pubsub.asyncIterator(['MESSAGE_RECEIVED']),
+      resolve: (payload) => payload.messageReceived,
     },
   },
   User: {
@@ -174,11 +200,3 @@ export default {
     reportedUserId: async (parent) => User.findById(parent.reportedUserId),
   },
 };
-
-function handleError(err) {
-  if (err instanceof ApiError) {
-    return new ApiResponse(err.statusCode, null, err.message);
-  }
-  winston.error(`Unexpected error: ${err.message}`);
-  return new ApiResponse(500, null, 'Internal server error');
-}

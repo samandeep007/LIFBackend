@@ -104,6 +104,8 @@ const typeDefs = gql`
   type Mutation {
     register(email: String!, password: String!, name: String!, phone: String!, prompt: String!, lat: Float!, lng: Float!, age: Int!, gender: String!, interests: String): ApiResponse!
     login(email: String!, password: String!): ApiResponse!
+    updateProfile(name: String, bio: String, prompt: String, lat: Float, lng: Float, age: Int, gender: String, interests: String, preferences: String, ethnicity: String, education: String, smoking: Boolean): ApiResponse!
+    deleteProfile: ApiResponse!
     swipe(targetId: ID!, direction: String!): ApiResponse!
     undo: ApiResponse!
     toggleHiatus: ApiResponse!
