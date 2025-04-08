@@ -5,7 +5,7 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-v6.x-blue)
 ![Swagger](https://img.shields.io/badge/Swagger-OpenAPI%203.0-brightgreen)
 
-The backend for "L.I.F - Love Is Free" is a Node.js application built with Express, Apollo Server (GraphQL), MongoDB, and Cloudinary. It provides a robust API for a dating app with advanced user filtering, location-based search, messaging, safety features, and real-time subscriptions. The codebase uses ES6 modules, standardized error/response handling with `ApiError` and `ApiResponse` classes, `asyncHandler` for async operations, and Swagger for REST API documentation.
+The backend for "L.I.F - Love Is Free" is a Node.js application built with Express, Apollo Server (GraphQL), MongoDB, Cloudinary, and Socket.IO. It provides a robust API for a dating app with advanced user filtering, location-based search, messaging with notifications, audio/video calling, safety features, and real-time subscriptions.
 
 ---
 
@@ -43,6 +43,8 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
   - Swipe up for "maybe" and undo last swipe
   - Hiatus mode to pause profile visibility
   - Update and delete user profiles
+  - Real-time message notifications
+  - Audio/video calling via WebRTC
 
 - **Safety Features**:
   - Profile verification with simulated facial recognition
@@ -59,6 +61,7 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
   - Dual API: REST (Swagger-documented) and GraphQL with real-time subscriptions
   - MongoDB with geospatial indexing for location queries
   - Cloudinary for photo storage with Multer for temp uploads
+  - Socket.IO for WebRTC signaling and real-time updates
   - Standardized error and response handling
   - Rate limiting, CSRF protection, and security middleware
 
@@ -76,7 +79,7 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
 ## Installation
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/samandeep007/LIFBackend.git
+   git clone https://github.com/yourusername/LIFBackend.git
    cd LIFBackend
    ```
 
@@ -99,17 +102,21 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
 ```
 LIFBackend/
 ├── src/
-│   ├── controllers/         # Business logic for auth, users, messages, safety
+│   ├── controllers/         # Business logic for auth, users, messages, safety, notifications, calls
 │   │   ├── authController.js
 │   │   ├── userController.js
 │   │   ├── messageController.js
 │   │   ├── safetyController.js
+│   │   ├── notificationController.js
+│   │   ├── callController.js
 │   ├── models/              # Mongoose schemas
 │   │   ├── User.js
 │   │   ├── Message.js
 │   │   ├── Match.js
 │   │   ├── Confession.js
 │   │   ├── SafetyReport.js
+│   │   ├── Notification.js
+│   │   ├── Call.js
 │   ├── middlewares/         # Express middleware
 │   │   ├── authMiddleware.js
 │   │   ├── validateInput.js
@@ -149,12 +156,6 @@ CLOUDINARY_API_SECRET=your-api-secret
 CSRF_SECRET=your-csrf-secret-key
 NODE_ENV=development
 ```
-- `PORT`: Server port (default: 5000)
-- `MONGO_URI`: MongoDB connection string
-- `JWT_SECRET`: Secret for JWT signing (min 32 chars)
-- `CLOUDINARY_*`: Cloudinary credentials for photo uploads
-- `CSRF_SECRET`: Secret for CSRF token generation
-- `NODE_ENV`: `development` or `production`
 
 ---
 
@@ -179,280 +180,124 @@ NODE_ENV=development
 ## API Documentation
 
 ### Swagger UI
-The REST API is documented using Swagger (OpenAPI 3.0). Access the interactive UI at:
-- **URL**: `http://localhost:5000/api-docs`
-- **Features**: Explore endpoints, test requests, view schemas.
+Access at `http://localhost:5000/api-docs`.
 
 ### REST Endpoints
-All endpoints require JWT authentication via `Authorization: Bearer <token>` unless noted.
-
-- **Auth**:
-  - `POST /api/auth/register` - Register a new user (multipart/form-data with photo, location, age, gender, interests)
-  - `POST /api/auth/login` - Log in a user
-
-- **Users**:
-  - `GET /api/users/profiles` - Get filtered profiles (supports location radius, age, gender, interests, preferences, ethnicity, education, smoking)
-  - `PUT /api/users/profile` - Update user profile (multipart/form-data with optional photo)
-  - `DELETE /api/users/profile` - Delete user profile
-  - `POST /api/users/swipe` - Swipe on a user (right, left, up)
-  - `GET /api/users/stats` - Get user statistics
-  - `POST /api/users/undo` - Undo last swipe
-  - `POST /api/users/hiatus` - Toggle hiatus mode
-  - `POST /api/users/superlike` - Super like a user
-  - `POST /api/users/boost` - Boost profile visibility
-
-- **Messages**:
-  - `POST /api/messages` - Send a message
-  - `GET /api/messages/conversation/:userId` - Get conversation
-  - `POST /api/messages/confession` - Send a confession
-  - `GET /api/messages/safety-guidelines` - Get safety guidelines (no auth required)
-
-- **Safety**:
-  - `POST /api/safety/report` - Report suspicious activity
-  - `POST /api/safety/verify-location` - Verify location
-  - `POST /api/safety/confirm-identity` - Confirm identity (multipart/form-data with photo)
+- **Auth**: Unchanged
+- **Users**: Unchanged
+- **Messages**: Unchanged
+- **Safety**: Unchanged
 
 ### GraphQL Queries
-- **profiles(lat, lng, maxDistance, minAge, maxAge, gender, interests, preferences, ethnicity, education, smoking)**:
-  Retrieve filtered user profiles.
+- **notifications(userId)**: Retrieve user notifications.
   ```graphql
   query {
-    profiles(lat: 40.7128, lng: -74.0060, maxDistance: 10, minAge: 25, maxAge: 35, gender: "female", interests: "hiking") {
-      statusCode
-      success
+    notifications(userId: "user-id") {
+      id
+      type
       message
-      data
+      read
+      createdAt
     }
   }
   ```
-- **stats**: Get user statistics.
+- **callHistory(userId)**: Retrieve call history.
   ```graphql
   query {
-    stats {
-      statusCode
-      success
-      message
-      data {
-        views
-        swipesRight
-        swipesLeft
-        superLikes
-        avgResponseTime
-        ghostedCount
-      }
-    }
-  }
-  ```
-- **conversation(userId)**: Fetch conversation with a user.
-  ```graphql
-  query {
-    conversation(userId: "user-id") {
-      statusCode
-      success
-      message
-      data {
-        id
-        text
-        sender { id }
-        receiver { id }
-      }
-    }
-  }
-  ```
-- **safetyGuidelines**: Get safety conversation starters.
-  ```graphql
-  query {
-    safetyGuidelines {
-      statusCode
-      success
-      message
-      data
+    callHistory(userId: "user-id") {
+      id
+      caller { name }
+      receiver { name }
+      status
+      type
+      startTime
+      endTime
     }
   }
   ```
 
 ### GraphQL Mutations
-- **register(email, password, name, phone, prompt, lat, lng, age, gender, interests)**:
-  Register a new user (requires `photo` via `multipart/form-data`).
+- **markNotificationRead(id)**: Mark a notification as read.
   ```graphql
   mutation {
-    register(email: "test@example.com", password: "password123", name: "Test", phone: "1234567890", prompt: "Hi!", lat: 40.7128, lng: -74.0060, age: 30, gender: "male", interests: "hiking,music") {
-      statusCode
-      success
-      message
-      data {
-        token
-        user { id }
-      }
-    }
-  }
-  ```
-- **login(email, password)**: Log in a user.
-  ```graphql
-  mutation {
-    login(email: "test@example.com", password: "password123") {
-      statusCode
-      success
-      message
-      data {
-        token
-        user { id }
-      }
-    }
-  }
-  ```
-- **updateProfile(name, bio, prompt, lat, lng, age, gender, interests, preferences, ethnicity, education, smoking)**:
-  Update user profile (requires `photo` via `multipart/form-data` if updating photo).
-  ```graphql
-  mutation {
-    updateProfile(name: "New Name", bio: "New bio", lat: 40.7128, lng: -74.0060, interests: "hiking,music") {
+    markNotificationRead(id: "notification-id") {
       statusCode
       success
       message
       data {
         id
-        name
-        bio
-        location { coordinates }
-        interests
+        read
       }
     }
   }
   ```
-- **deleteProfile**: Delete user profile.
+- **initiateCall(receiverId, type)**: Start an audio/video call.
   ```graphql
   mutation {
-    deleteProfile {
-      statusCode
-      success
-      message
-      data
-    }
-  }
-  ```
-- **swipe(targetId, direction)**: Swipe on a user.
-  ```graphql
-  mutation {
-    swipe(targetId: "target-id", direction: "right") {
-      statusCode
-      success
-      message
-      data {
-        match
-      }
-    }
-  }
-  ```
-- **undo**: Undo the last swipe.
-  ```graphql
-  mutation {
-    undo {
-      statusCode
-      success
-      message
-      data {
-        undoneUser { id }
-      }
-    }
-  }
-  ```
-- **toggleHiatus**: Toggle hiatus mode.
-  ```graphql
-  mutation {
-    toggleHiatus {
-      statusCode
-      success
-      message
-      data
-    }
-  }
-  ```
-- **superLike(targetId)**: Super like a user.
-  ```graphql
-  mutation {
-    superLike(targetId: "target-id") {
-      statusCode
-      success
-      message
-      data
-    }
-  }
-  ```
-- **boostProfile**: Boost profile visibility.
-  ```graphql
-  mutation {
-    boostProfile {
-      statusCode
-      success
-      message
-      data
-    }
-  }
-  ```
-- **sendMessage(receiverId, text)**: Send a message.
-  ```graphql
-  mutation {
-    sendMessage(receiverId: "receiver-id", text: "Hello!") {
+    initiateCall(receiverId: "user-id", type: "video") {
       statusCode
       success
       message
       data {
         id
-        text
+        caller { id }
+        receiver { id }
+        status
+        type
       }
     }
   }
   ```
-- **sendConfession(text)**: Send a confession.
+- **acceptCall(callId)**: Accept a call.
   ```graphql
   mutation {
-    sendConfession(text: "I like you!") {
+    acceptCall(callId: "call-id") {
       statusCode
       success
       message
-      data
+      data {
+        id
+        status
+        startTime
+      }
     }
   }
   ```
-- **reportSuspiciousActivity(reportedUserId, location, reason)**: Report a user.
+- **rejectCall(callId)**: Reject a call.
   ```graphql
   mutation {
-    reportSuspiciousActivity(reportedUserId: "user-id", location: "City", reason: "Inappropriate behavior") {
+    rejectCall(callId: "call-id") {
       statusCode
       success
       message
-      data
+      data {
+        id
+        status
+      }
     }
   }
   ```
-- **verifyLocation(location)**: Verify user location.
+- **endCall(callId)**: End a call.
   ```graphql
   mutation {
-    verifyLocation(location: "lat,long") {
+    endCall(callId: "call-id") {
       statusCode
       success
       message
-      data
-    }
-  }
-  ```
-- **confirmIdentity**: Confirm identity (requires `photo` via `multipart/form-data`).
-  ```graphql
-  mutation {
-    confirmIdentity {
-      statusCode
-      success
-      message
-      data
+      data {
+        id
+        status
+        endTime
+      }
     }
   }
   ```
 
 ### GraphQL Subscriptions
-- **messageReceived**: Subscribe to real-time message updates.
+- **messageReceived(receiverId)**: Real-time message updates.
   ```graphql
   subscription {
-    messageReceived {
+    messageReceived(receiverId: "user-id") {
       id
       text
       sender { id }
@@ -460,57 +305,57 @@ All endpoints require JWT authentication via `Authorization: Bearer <token>` unl
     }
   }
   ```
+- **notificationReceived(userId)**: Real-time notifications.
+  ```graphql
+  subscription {
+    notificationReceived(userId: "user-id") {
+      id
+      type
+      message
+      read
+      createdAt
+    }
+  }
+  ```
+- **callInitiated(receiverId)**: Real-time call initiation.
+  ```graphql
+  subscription {
+    callInitiated(receiverId: "user-id") {
+      id
+      caller { id name }
+      receiver { id name }
+      status
+      type
+    }
+  }
+  ```
 
 ---
 
 ## Error Handling
-- Errors are managed with the `ApiError` class:
-  - `statusCode`: HTTP status (e.g., 400, 401, 500)
-  - `status`: "fail" (4xx) or "error" (5xx)
-  - `message`: Descriptive error message
-  - `isOperational`: Indicates expected errors (default: true)
-- `asyncHandler` catches errors in async functions, passing them to API responses.
+- Uses `ApiError` class with `statusCode`, `status`, `message`, and `isOperational`.
 
 ---
 
 ## Response Format
-All responses use the `ApiResponse` class:
 ```json
 {
-  "statusCode": Int,    // HTTP status code (e.g., 200, 400)
-  "success": Boolean,   // True if statusCode < 400
-  "message": String,    // Descriptive message
-  "data": JSON          // Response data or null on error
+  "statusCode": Int,
+  "success": Boolean,
+  "message": String,
+  "data": JSON
 }
 ```
-- **Success Example**:
-  ```json
-  {
-    "statusCode": 200,
-    "success": true,
-    "message": "Profiles retrieved successfully",
-    "data": [/* user objects */]
-  }
-  ```
-- **Error Example**:
-  ```json
-  {
-    "statusCode": 400,
-    "success": false,
-    "message": "Invalid swipe direction",
-    "data": null
-  }
-  ```
 
 ---
 
 ## Dependencies
-- **Core**: `express`, `apollo-server-express`, `graphql`, `mongoose`
+- **Core**: `express`, `apollo-server-express`, `graphql`, `mongoose`, `socket.io`
 - **Security**: `helmet`, `express-mongo-sanitize`, `csurf`, `express-rate-limit`
 - **Utilities**: `jsonwebtoken`, `bcryptjs`, `dotenv`, `winston`
 - **File Handling**: `multer`, `cloudinary`
 - **Development**: `nodemon`
-- **GraphQL Tools**: `@graphql-tools/schema`, `subscriptions-transport-ws`
+- **GraphQL Tools**: `@graphql-tools/schema`, `subscriptions-transport-ws`, `graphql-subscriptions`, `graphql-ws`
 - **Swagger**: `swagger-jsdoc`, `swagger-ui-express`
 
 ---
@@ -525,4 +370,4 @@ All responses use the `ApiResponse` class:
 ---
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
