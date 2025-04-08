@@ -1,23 +1,21 @@
-import { cloudinary } from '../lib.js';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config({ path: '../../.env' }); // Adjust path to reach .env from src/utils/
 
+// Configure Cloudinary with environment variables
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const uploadToCloudinary = async (filePath, options = {}) => {
-    const result = await cloudinary.uploader.upload(filePath, {
-        folder: 'lif-profiles',
-        ...options,
-    });
-    await fs.unlink(filePath);
-    return result.secure_url;
+// Utility function to upload files
+const uploadToCloudinary = (filePath) => {
+  return cloudinary.uploader.upload(filePath, {
+    folder: 'lif_profiles',
+    transformation: [{ width: 500, height: 500, crop: 'limit' }],
+  });
 };
+
+export { cloudinary, uploadToCloudinary };
