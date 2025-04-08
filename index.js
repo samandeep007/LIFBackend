@@ -1,3 +1,4 @@
+// index.js
 import { app, httpServer } from './src/app.js';
 import { Server } from 'socket.io';
 import { winston } from './src/lib.js';
@@ -23,5 +24,5 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => winston.info('WebSocket client disconnected'));
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000; // Use Render's PORT or fallback to 5000
 httpServer.listen(PORT, () => winston.info(`Server running on port ${PORT}, GraphQL at /graphql, Swagger at /api-docs`));
