@@ -1,0 +1,35 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Environment Variables
+.env
+
+# Logs
+logs/
+*.log
+
+# Temporary Uploads
+public/temp/
+
+# Build Artifacts
+dist/
+build/
+
+# MongoDB Local Data (if running locally)
+data/
+
+# Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
