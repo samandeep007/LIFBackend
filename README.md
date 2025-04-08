@@ -76,7 +76,7 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
 ## Installation
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/LIFBackend.git
+   git clone https://github.com/samandeep007/LIFBackend.git
    cd LIFBackend
    ```
 
