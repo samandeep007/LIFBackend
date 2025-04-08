@@ -1,4 +1,4 @@
-import { Message, Confession, User, winston, pubsub, ApiError, ApiResponse, asyncHandler } from '../lib.js';
+import { Message, Confession, User, winston, pubsub, ApiError, ApiResponse, asyncHandler, notificationController } from '../lib.js';
 
 /**
  * @swagger
@@ -32,6 +32,14 @@ export const sendMessage = asyncHandler(async (req) => {
   await message.save();
   winston.info(`Message sent from ${req.userId} to ${receiverId}`);
   pubsub.publish('MESSAGE_RECEIVED', { messageReceived: message });
+
+  const sender = await User.findById(req.userId);
+  await notificationController.createNotification({
+    userId: receiverId,
+    type: 'message',
+    message: `New message from ${sender.name}`,
+  });
+
   return new ApiResponse(200, message, 'Message sent successfully');
 });
 
@@ -103,6 +111,14 @@ export const sendConfession = asyncHandler(async (req) => {
   await message.save();
   winston.info(`Confession sent from ${req.userId} to ${randomUser._id}`);
   pubsub.publish('MESSAGE_RECEIVED', { messageReceived: message });
+
+  const sender = await User.findById(req.userId);
+  await notificationController.createNotification({
+    userId: randomUser._id,
+    type: 'confession',
+    message: `New confession from ${sender.name}`,
+  });
+
   return new ApiResponse(200, true, 'Confession sent successfully');
 });
 

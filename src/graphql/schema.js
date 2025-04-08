@@ -40,6 +40,7 @@ const typeDefs = gql`
     text: String!
     timestamp: String!
     read: Boolean!
+    readAt: String
     isConfession: Boolean!
   }
 
@@ -63,6 +64,25 @@ const typeDefs = gql`
     location: String
     reason: String!
     timestamp: String!
+  }
+
+  type Notification {
+    id: ID!
+    userId: ID!
+    type: String!
+    message: String!
+    read: Boolean!
+    createdAt: String!
+  }
+
+  type Call {
+    id: ID!
+    caller: User!
+    receiver: User!
+    status: String!
+    type: String!
+    startTime: String
+    endTime: String
   }
 
   type Stats {
@@ -99,6 +119,8 @@ const typeDefs = gql`
     stats: ApiResponse!
     conversation(userId: ID!): ApiResponse!
     safetyGuidelines: ApiResponse!
+    notifications(userId: ID!): ApiResponse!
+    callHistory(userId: ID!): ApiResponse!
   }
 
   type Mutation {
@@ -116,10 +138,17 @@ const typeDefs = gql`
     reportSuspiciousActivity(reportedUserId: ID!, location: String, reason: String!): ApiResponse!
     verifyLocation(location: String!): ApiResponse!
     confirmIdentity: ApiResponse!
+    markNotificationRead(id: ID!): ApiResponse!
+    initiateCall(receiverId: ID!, type: String!): ApiResponse!
+    acceptCall(callId: ID!): ApiResponse!
+    rejectCall(callId: ID!): ApiResponse!
+    endCall(callId: ID!): ApiResponse!
   }
 
   type Subscription {
-    messageReceived: Message!
+    messageReceived(receiverId: ID!): Message!
+    notificationReceived(userId: ID!): Notification!
+    callInitiated(receiverId: ID!): Call!
   }
 
   scalar JSON

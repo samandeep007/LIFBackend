@@ -1,4 +1,4 @@
-import { authController, userController, messageController, safetyController, User, authMiddleware, validateInput, pubsub, ApiError } from '../lib.js';
+import { authController, userController, messageController, safetyController, notificationController, callController, User, Notification, Call, authMiddleware, validateInput, pubsub, ApiError } from '../lib.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -48,6 +48,24 @@ export default {
     safetyGuidelines: async () => {
       try {
         return await messageController.getSafetyGuidelines();
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    notifications: async (_, { userId }, context) => {
+      try {
+        const { userId: requesterId } = await authMiddleware(context.req);
+        if (requesterId !== userId) throw new ApiError(403, 'Unauthorized');
+        return await notificationController.getNotifications({ userId });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    callHistory: async (_, { userId }, context) => {
+      try {
+        const { userId: requesterId } = await authMiddleware(context.req);
+        if (requesterId !== userId) throw new ApiError(403, 'Unauthorized');
+        return await callController.getCallHistory({ userId });
       } catch (err) {
         return handleError(err);
       }
@@ -174,11 +192,60 @@ export default {
         return handleError(err);
       }
     },
+    markNotificationRead: async (_, { id }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        context.req.body = { id };
+        return await notificationController.markNotificationRead({ userId, ...context.req });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    initiateCall: async (_, { receiverId, type }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await callController.initiateCall({ userId, body: { receiverId, type } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    acceptCall: async (_, { callId }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await callController.acceptCall({ userId, body: { callId } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    rejectCall: async (_, { callId }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await callController.rejectCall({ userId, body: { callId } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    endCall: async (_, { callId }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await callController.endCall({ userId, body: { callId } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
   },
   Subscription: {
     messageReceived: {
-      subscribe: () => pubsub.asyncIterator(['MESSAGE_RECEIVED']),
+      subscribe: (_, { receiverId }) => pubsub.asyncIterator(['MESSAGE_RECEIVED']),
       resolve: (payload) => payload.messageReceived,
+    },
+    notificationReceived: {
+      subscribe: (_, { userId }) => pubsub.asyncIterator(['NOTIFICATION_RECEIVED']),
+      resolve: (payload) => payload.notificationReceived,
+    },
+    callInitiated: {
+      subscribe: (_, { receiverId }) => pubsub.asyncIterator(['CALL_INITIATED']),
+      resolve: (payload) => payload.callInitiated,
     },
   },
   User: {
@@ -198,5 +265,12 @@ export default {
   SafetyReport: {
     userId: async (parent) => User.findById(parent.userId),
     reportedUserId: async (parent) => User.findById(parent.reportedUserId),
+  },
+  Notification: {
+    userId: async (parent) => User.findById(parent.userId),
+  },
+  Call: {
+    caller: async (parent) => User.findById(parent.caller),
+    receiver: async (parent) => User.findById(parent.receiver),
   },
 };
