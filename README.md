@@ -42,6 +42,7 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
   - Ghosting stats and detailed user insights
   - Swipe up for "maybe" and undo last swipe
   - Hiatus mode to pause profile visibility
+  - Update and delete user profiles
 
 - **Safety Features**:
   - Profile verification with simulated facial recognition
@@ -191,6 +192,8 @@ All endpoints require JWT authentication via `Authorization: Bearer <token>` unl
 
 - **Users**:
   - `GET /api/users/profiles` - Get filtered profiles (supports location radius, age, gender, interests, preferences, ethnicity, education, smoking)
+  - `PUT /api/users/profile` - Update user profile (multipart/form-data with optional photo)
+  - `DELETE /api/users/profile` - Delete user profile
   - `POST /api/users/swipe` - Swipe on a user (right, left, up)
   - `GET /api/users/stats` - Get user statistics
   - `POST /api/users/undo` - Undo last swipe
@@ -295,6 +298,35 @@ All endpoints require JWT authentication via `Authorization: Bearer <token>` unl
         token
         user { id }
       }
+    }
+  }
+  ```
+- **updateProfile(name, bio, prompt, lat, lng, age, gender, interests, preferences, ethnicity, education, smoking)**:
+  Update user profile (requires `photo` via `multipart/form-data` if updating photo).
+  ```graphql
+  mutation {
+    updateProfile(name: "New Name", bio: "New bio", lat: 40.7128, lng: -74.0060, interests: "hiking,music") {
+      statusCode
+      success
+      message
+      data {
+        id
+        name
+        bio
+        location { coordinates }
+        interests
+      }
+    }
+  }
+  ```
+- **deleteProfile**: Delete user profile.
+  ```graphql
+  mutation {
+    deleteProfile {
+      statusCode
+      success
+      message
+      data
     }
   }
   ```
@@ -494,4 +526,3 @@ All responses use the `ApiResponse` class:
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
