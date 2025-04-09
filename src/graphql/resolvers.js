@@ -1,7 +1,8 @@
-import { authController, userController, messageController, safetyController, notificationController, callController, User, Notification, Call, authMiddleware, validateInput, pubsub, ApiError } from '../lib.js';
+import { authController, userController, messageController, safetyController, notificationController, callController, User, Notification, Call, Like, Match, authMiddleware, validateInput, pubsub, ApiError } from '../lib.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { withFilter } from 'graphql-subscriptions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +71,14 @@ export default {
         return handleError(err);
       }
     },
+    maybeLikes: async (_, __, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await userController.getMaybeLikes({ userId });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
   },
   Mutation: {
     register: async (_, args, context) => {
@@ -87,6 +96,31 @@ export default {
         context.req.body = args;
         await validateInput('login')(context.req, {}, () => {});
         return await authController.login(context.req);
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    verifyEmail: async (_, { token }, context) => {
+      try {
+        context.req.query = { token };
+        return await authController.verifyEmail(context.req);
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    forgotPassword: async (_, { email }, context) => {
+      try {
+        context.req.body = { email };
+        return await authController.forgotPassword(context.req);
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    resetPassword: async (_, { token, password }, context) => {
+      try {
+        context.req.query = { token };
+        context.req.body = { password };
+        return await authController.resetPassword(context.req);
       } catch (err) {
         return handleError(err);
       }
@@ -109,18 +143,18 @@ export default {
         return handleError(err);
       }
     },
-    swipe: async (_, { targetId, direction }, context) => {
+    likeProfile: async (_, { targetId, direction }, context) => {
       try {
         const { userId } = await authMiddleware(context.req);
-        return await userController.swipe({ userId, body: { targetId, direction } });
+        return await userController.likeProfile({ userId, body: { targetId, direction } });
       } catch (err) {
         return handleError(err);
       }
     },
-    undo: async (_, __, context) => {
+    undoLastSwipe: async (_, __, context) => {
       try {
         const { userId } = await authMiddleware(context.req);
-        return await userController.undoSwipe({ userId });
+        return await userController.undoLastSwipe({ userId });
       } catch (err) {
         return handleError(err);
       }
@@ -129,14 +163,6 @@ export default {
       try {
         const { userId } = await authMiddleware(context.req);
         return await userController.toggleHiatus({ userId });
-      } catch (err) {
-        return handleError(err);
-      }
-    },
-    superLike: async (_, { targetId }, context) => {
-      try {
-        const { userId } = await authMiddleware(context.req);
-        return await userController.superLike({ userId, body: { targetId } });
       } catch (err) {
         return handleError(err);
       }
@@ -236,21 +262,45 @@ export default {
   },
   Subscription: {
     messageReceived: {
-      subscribe: (_, { receiverId }) => pubsub.asyncIterator(['MESSAGE_RECEIVED']),
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(['MESSAGE_RECEIVED']),
+        (payload, variables) => payload.messageReceived.receiver.toString() === variables.receiverId
+      ),
       resolve: (payload) => payload.messageReceived,
     },
     notificationReceived: {
-      subscribe: (_, { userId }) => pubsub.asyncIterator(['NOTIFICATION_RECEIVED']),
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(['NOTIFICATION_RECEIVED']),
+        (payload, variables) => payload.notificationReceived.userId.toString() === variables.userId
+      ),
       resolve: (payload) => payload.notificationReceived,
     },
     callInitiated: {
-      subscribe: (_, { receiverId }) => pubsub.asyncIterator(['CALL_INITIATED']),
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(['CALL_INITIATED']),
+        (payload, variables) => payload.callInitiated.receiver.toString() === variables.receiverId
+      ),
       resolve: (payload) => payload.callInitiated,
+    },
+    matchCreated: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(['MATCH_CREATED']),
+        (payload, _, context) => {
+          const userId = context.req.userId;
+          return payload.matchCreated.users.some(u => u.toString() === userId);
+        }
+      ),
+      resolve: (payload) => payload.matchCreated,
     },
   },
   User: {
-    maybeSwipes: async (parent) => User.find({ _id: { $in: parent.maybeSwipes } }),
-    skippedMatches: async (parent) => User.find({ _id: { $in: parent.skippedMatches } }),
+    maybeLikes: async (parent) => User.find({ _id: { $in: parent.maybeLikes } }),
+    location: (parent) => parent.location,
+    interests: (parent) => parent.interests || [],
+  },
+  Like: {
+    liker: async (parent) => User.findById(parent.liker),
+    likee: async (parent) => User.findById(parent.likee),
   },
   Message: {
     sender: async (parent) => User.findById(parent.sender),
@@ -267,7 +317,7 @@ export default {
     reportedUserId: async (parent) => User.findById(parent.reportedUserId),
   },
   Notification: {
-    userId: async (parent) => User.findById(parent.userId),
+    userId: async (parent) => parent.userId,
   },
   Call: {
     caller: async (parent) => User.findById(parent.caller),

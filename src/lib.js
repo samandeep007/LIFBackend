@@ -17,6 +17,7 @@ import Confession from './models/Confession.js';
 import SafetyReport from './models/SafetyReport.js';
 import Notification from './models/Notification.js';
 import Call from './models/Call.js';
+import Like from './models/Like.js';
 
 import * as authController from './controllers/authController.js';
 import * as userController from './controllers/userController.js';
@@ -31,6 +32,7 @@ import rateLimitPerUser from './middlewares/rateLimitPerUser.js';
 
 import { uploadToCloudinary } from './utils/cloudinary.js';
 import { startAutoDelete } from './utils/autoDelete.js';
+import { sendEmail } from './utils/email.js';
 
 const pubsub = new PubSub();
 
@@ -53,6 +55,7 @@ export {
   SafetyReport,
   Notification,
   Call,
+  Like,
   authController,
   userController,
   messageController,
@@ -64,4 +67,5 @@ export {
   rateLimitPerUser,
   uploadToCloudinary,
   startAutoDelete,
+  sendEmail,
 };

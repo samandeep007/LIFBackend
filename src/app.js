@@ -42,23 +42,25 @@ app.use(rateLimitPerUser);
 const csrfProtection = csurf({ cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production' } });
 app.use(csrfProtection);
 
-mongoose.set('strictQuery', true); // Enforce strict queries now
-
+mongoose.set('strictQuery', true);
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => winston.info('MongoDB connected'))
   .catch(err => winston.error(`MongoDB connection failed: ${err.message}`));
 
 app.post('/api/auth/register', upload.single('photo'), authController.register);
 app.post('/api/auth/login', authController.login);
+app.get('/api/auth/verify-email', authController.verifyEmail);
+app.post('/api/auth/forgot-password', authController.forgotPassword);
+app.post('/api/auth/reset-password', authController.resetPassword);
 
 app.get('/api/users/profiles', authMiddleware, userController.getProfiles);
 app.put('/api/users/profile', upload.single('photo'), authMiddleware, userController.updateProfile);
 app.delete('/api/users/profile', authMiddleware, userController.deleteProfile);
-app.post('/api/users/swipe', authMiddleware, userController.swipe);
+app.post('/api/users/like', authMiddleware, userController.likeProfile);
+app.get('/api/users/maybe-likes', authMiddleware, userController.getMaybeLikes);
+app.post('/api/users/undo', authMiddleware, userController.undoLastSwipe);
 app.get('/api/users/stats', authMiddleware, userController.getStats);
-app.post('/api/users/undo', authMiddleware, userController.undoSwipe);
 app.post('/api/users/hiatus', authMiddleware, userController.toggleHiatus);
-app.post('/api/users/superlike', authMiddleware, userController.superLike);
 app.post('/api/users/boost', authMiddleware, userController.boostProfile);
 
 app.post('/api/messages', authMiddleware, messageController.sendMessage);

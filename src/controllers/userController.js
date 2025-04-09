@@ -1,4 +1,4 @@
-import { User, Match, Message, winston, ApiError, ApiResponse, asyncHandler } from '../lib.js';
+import { User, Match, Message, Like, winston, ApiError, ApiResponse, asyncHandler, pubsub } from '../lib.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
 
 /**
@@ -100,8 +100,6 @@ export const getProfiles = asyncHandler(async (req) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
- *       400:
- *         description: Validation error
  */
 export const updateProfile = asyncHandler(async (req) => {
   const user = await User.findById(req.userId);
@@ -146,8 +144,6 @@ export const updateProfile = asyncHandler(async (req) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
- *       404:
- *         description: User not found
  */
 export const deleteProfile = asyncHandler(async (req) => {
   const user = await User.findById(req.userId);
@@ -155,8 +151,10 @@ export const deleteProfile = asyncHandler(async (req) => {
 
   await Message.deleteMany({ $or: [{ sender: req.userId }, { receiver: req.userId }] });
   await Match.deleteMany({ users: req.userId });
+  await Like.deleteMany({ $or: [{ liker: req.userId }, { likee: req.userId }] });
   await Confession.deleteMany({ sender: req.userId });
   await SafetyReport.deleteMany({ $or: [{ userId: req.userId }, { reportedUserId: req.userId }] });
+  await User.updateMany({ maybeLikes: req.userId }, { $pull: { maybeLikes: req.userId } });
 
   await User.deleteOne({ _id: req.userId });
   winston.info(`Profile deleted for user ${req.userId}`);
@@ -165,9 +163,9 @@ export const deleteProfile = asyncHandler(async (req) => {
 
 /**
  * @swagger
- * /api/users/swipe:
+ * /api/users/like:
  *   post:
- *     summary: Swipe on a user
+ *     summary: Like or mark a user profile as maybe
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -179,39 +177,119 @@ export const deleteProfile = asyncHandler(async (req) => {
  *             type: object
  *             properties:
  *               targetId: { type: string }
- *               direction: { type: string, enum: [right, left, up] }
+ *               direction: { type: string, enum: [right, up] }
  *     responses:
  *       200:
- *         description: Swipe successful
+ *         description: Profile liked or marked as maybe, possible match created
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
  */
-export const swipe = asyncHandler(async (req) => {
+export const likeProfile = asyncHandler(async (req) => {
   const { targetId, direction } = req.body;
-  if (!['right', 'left', 'up'].includes(direction)) throw new ApiError(400, 'Invalid swipe direction');
-  const user = await User.findById(req.userId);
+  const likerId = req.userId;
+
+  if (!['right', 'up'].includes(direction)) throw new ApiError(400, 'Invalid direction. Use "right" or "up"');
+  if (likerId === targetId) throw new ApiError(400, 'Cannot like yourself');
   const target = await User.findById(targetId);
   if (!target) throw new ApiError(404, 'Target user not found');
 
+  const user = await User.findById(likerId);
+
   if (direction === 'right') {
-    target.swipesRight += 1;
-    const reverseSwipe = await Match.findOne({ users: [targetId, req.userId] });
-    if (reverseSwipe) {
-      await Match.create({ users: [req.userId, targetId] });
-      winston.info(`Match created between ${req.userId} and ${targetId}`);
-      return new ApiResponse(200, { match: true }, 'Swipe successful, match created');
+    const existingLike = await Like.findOne({ liker: likerId, likee: targetId });
+    if (existingLike) throw new ApiError(400, 'Already liked this profile');
+
+    const like = new Like({ liker: likerId, likee: targetId, isSuperLike: false });
+    await like.save();
+    user.lastSwipeAction = { direction: 'right', targetId, timestamp: new Date() };
+    await user.save();
+    winston.info(`User ${likerId} liked ${targetId}`);
+
+    const mutualLike = await Like.findOne({ liker: targetId, likee: likerId });
+    if (mutualLike) {
+      const existingMatch = await Match.findOne({ users: { $all: [likerId, targetId] } });
+      if (!existingMatch) {
+        const match = new Match({ users: [likerId, targetId] });
+        await match.save();
+        pubsub.publish('MATCH_CREATED', { matchCreated: match });
+        winston.info(`Match created between ${likerId} and ${targetId}`);
+        return new ApiResponse(200, { match, isMatch: true }, 'Match created!');
+      }
+      return new ApiResponse(200, { match: existingMatch, isMatch: true }, 'Match already exists');
     }
-  } else if (direction === 'left') {
-    target.swipesLeft += 1;
-    user.skippedMatches.push(targetId);
+    return new ApiResponse(200, { like, isMatch: false }, 'Profile liked');
   } else if (direction === 'up') {
-    user.maybeSwipes.push(targetId);
+    if (user.maybeLikes.includes(targetId)) throw new ApiError(400, 'Already marked as maybe');
+    user.maybeLikes.push(targetId);
+    user.lastSwipeAction = { direction: 'up', targetId, timestamp: new Date() };
+    await user.save();
+    winston.info(`User ${likerId} marked ${targetId} as maybe`);
+    return new ApiResponse(200, { maybe: targetId }, 'Profile marked as maybe');
   }
+});
+
+/**
+ * @swagger
+ * /api/users/maybe-likes:
+ *   get:
+ *     summary: Get user's maybe likes list
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Maybe likes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+export const getMaybeLikes = asyncHandler(async (req) => {
+  const user = await User.findById(req.userId).populate('maybeLikes', 'name photoURL bio age gender');
+  if (!user) throw new ApiError(404, 'User not found');
+  return new ApiResponse(200, user.maybeLikes, 'Maybe likes retrieved successfully');
+});
+
+/**
+ * @swagger
+ * /api/users/undo:
+ *   post:
+ *     summary: Undo the last swipe action
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Last swipe undone successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+export const undoLastSwipe = asyncHandler(async (req) => {
+  const user = await User.findById(req.userId);
+  if (!user) throw new ApiError(404, 'User not found');
+  const { direction, targetId, timestamp } = user.lastSwipeAction || {};
+
+  if (!direction || !targetId || !timestamp) throw new ApiError(400, 'No recent swipe to undo');
+  if (Date.now() - new Date(timestamp) > 24 * 60 * 60 * 1000) throw new ApiError(400, 'Undo period expired (24 hours)');
+
+  if (direction === 'right') {
+    const like = await Like.findOneAndDelete({ liker: req.userId, likee: targetId });
+    if (!like) throw new ApiError(400, 'Like not found to undo');
+    winston.info(`User ${req.userId} undid like for ${targetId}`);
+  } else if (direction === 'up') {
+    user.maybeLikes = user.maybeLikes.filter(id => id.toString() !== targetId.toString());
+    winston.info(`User ${req.userId} undid maybe for ${targetId}`);
+  }
+
+  user.lastSwipeAction = { direction: null, targetId: null, timestamp: null };
   await user.save();
-  await target.save();
-  return new ApiResponse(200, { match: false }, 'Swipe successful');
+
+  const undoneUser = await User.findById(targetId);
+  return new ApiResponse(200, { undoneUser }, 'Last swipe undone successfully');
 });
 
 /**
@@ -233,6 +311,10 @@ export const swipe = asyncHandler(async (req) => {
 export const getStats = asyncHandler(async (req) => {
   const user = await User.findById(req.userId);
   const messages = await Message.find({ $or: [{ sender: req.userId }, { receiver: req.userId }] });
+  const likesGiven = await Like.countDocuments({ liker: req.userId });
+  const likesReceived = await Like.countDocuments({ likee: req.userId });
+  const superLikesGiven = await Like.countDocuments({ liker: req.userId, isSuperLike: true });
+  const matches = await Match.countDocuments({ users: req.userId });
 
   const sentMessages = messages.filter(m => m.sender.toString() === req.userId.toString());
   const receivedMessages = messages.filter(m => m.receiver.toString() === req.userId.toString());
@@ -243,38 +325,14 @@ export const getStats = asyncHandler(async (req) => {
 
   const stats = {
     views: user.views,
-    swipesRight: user.swipesRight,
-    swipesLeft: user.swipesLeft,
-    superLikes: user.superLikesReceived,
+    likesGiven,
+    likesReceived,
+    superLikesGiven,
+    matches,
     avgResponseTime: avgResponseTime / (1000 * 60),
     ghostedCount,
   };
   return new ApiResponse(200, stats, 'Stats retrieved successfully');
-});
-
-/**
- * @swagger
- * /api/users/undo:
- *   post:
- *     summary: Undo the last swipe
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Swipe undone successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- */
-export const undoSwipe = asyncHandler(async (req) => {
-  const user = await User.findById(req.userId);
-  const lastSkipped = user.skippedMatches.pop();
-  await user.save();
-  winston.info(`User ${req.userId} undid swipe for ${lastSkipped}`);
-  const undoneUser = lastSkipped ? await User.findById(lastSkipped) : null;
-  return new ApiResponse(200, { undoneUser }, 'Swipe undone successfully');
 });
 
 /**
@@ -299,40 +357,6 @@ export const toggleHiatus = asyncHandler(async (req) => {
   await user.save();
   winston.info(`User ${req.userId} toggled hiatus to ${user.hiatus}`);
   return new ApiResponse(200, user.hiatus, `Hiatus ${user.hiatus ? 'enabled' : 'disabled'} successfully`);
-});
-
-/**
- * @swagger
- * /api/users/superlike:
- *   post:
- *     summary: Super like a user
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               targetId: { type: string }
- *     responses:
- *       200:
- *         description: Super like successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- */
-export const superLike = asyncHandler(async (req) => {
-  const { targetId } = req.body;
-  const target = await User.findById(targetId);
-  if (!target) throw new ApiError(404, 'Target user not found');
-  target.superLikesReceived += 1;
-  await target.save();
-  winston.info(`User ${req.userId} super-liked ${targetId}`);
-  return new ApiResponse(200, true, 'Super like successful');
 });
 
 /**

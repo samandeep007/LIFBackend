@@ -17,13 +17,9 @@ const typeDefs = gql`
     education: String
     smoking: Boolean
     views: Int
-    swipesRight: Int
-    swipesLeft: Int
-    superLikesReceived: Int
     hiatus: Boolean
     verified: Boolean
-    maybeSwipes: [User]
-    skippedMatches: [User]
+    maybeLikes: [User]
     lastActive: String
     boostedUntil: String
   }
@@ -31,6 +27,14 @@ const typeDefs = gql`
   type Location {
     type: String!
     coordinates: [Float]!
+  }
+
+  type Like {
+    id: ID!
+    liker: User!
+    likee: User!
+    isSuperLike: Boolean!
+    createdAt: String!
   }
 
   type Message {
@@ -87,20 +91,12 @@ const typeDefs = gql`
 
   type Stats {
     views: Int
-    swipesRight: Int
-    swipesLeft: Int
-    superLikes: Int
+    likesGiven: Int
+    likesReceived: Int
+    superLikesGiven: Int
+    matches: Int
     avgResponseTime: Float
     ghostedCount: Int
-  }
-
-  type AuthPayload {
-    token: String!
-    user: User!
-  }
-
-  type SwipeResponse {
-    match: Boolean!
   }
 
   type UndoResponse {
@@ -121,17 +117,20 @@ const typeDefs = gql`
     safetyGuidelines: ApiResponse!
     notifications(userId: ID!): ApiResponse!
     callHistory(userId: ID!): ApiResponse!
+    maybeLikes: ApiResponse!
   }
 
   type Mutation {
     register(email: String!, password: String!, name: String!, phone: String!, prompt: String!, lat: Float!, lng: Float!, age: Int!, gender: String!, interests: String): ApiResponse!
     login(email: String!, password: String!): ApiResponse!
+    verifyEmail(token: String!): ApiResponse!
+    forgotPassword(email: String!): ApiResponse!
+    resetPassword(token: String!, password: String!): ApiResponse!
     updateProfile(name: String, bio: String, prompt: String, lat: Float, lng: Float, age: Int, gender: String, interests: String, preferences: String, ethnicity: String, education: String, smoking: Boolean): ApiResponse!
     deleteProfile: ApiResponse!
-    swipe(targetId: ID!, direction: String!): ApiResponse!
-    undo: ApiResponse!
+    likeProfile(targetId: ID!, direction: String!): ApiResponse!
+    undoLastSwipe: ApiResponse!
     toggleHiatus: ApiResponse!
-    superLike(targetId: ID!): ApiResponse!
     boostProfile: ApiResponse!
     sendMessage(receiverId: ID!, text: String!): ApiResponse!
     sendConfession(text: String!): ApiResponse!
@@ -149,6 +148,7 @@ const typeDefs = gql`
     messageReceived(receiverId: ID!): Message!
     notificationReceived(userId: ID!): Notification!
     callInitiated(receiverId: ID!): Call!
+    matchCreated: Match!
   }
 
   scalar JSON

@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
   preferences: { type: String, enum: ['long-term', 'casual', 'intimacy'], default: 'casual' },
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number], required: true }, // [longitude, latitude]
+    coordinates: { type: [Number], required: true },
   },
   age: { type: Number, required: true, min: 18 },
   gender: { type: String, enum: ['male', 'female', 'nonbinary'], required: true },
@@ -19,19 +19,23 @@ const userSchema = new mongoose.Schema({
   education: { type: String },
   smoking: { type: Boolean, default: false },
   views: { type: Number, default: 0 },
-  swipesRight: { type: Number, default: 0 },
-  swipesLeft: { type: Number, default: 0 },
-  superLikesReceived: { type: Number, default: 0 },
   hiatus: { type: Boolean, default: false },
   verified: { type: Boolean, default: false },
-  maybeSwipes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  skippedMatches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  emailVerificationToken: { type: String },
+  emailVerificationExpires: { type: Date },
+  passwordResetToken: { type: String },
+  passwordResetExpires: { type: Date },
+  maybeLikes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  lastSwipeAction: {
+    direction: { type: String, enum: ['right', 'up'], default: null },
+    targetId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    timestamp: { type: Date, default: null },
+  },
   lastActive: { type: Date, default: Date.now },
   tokenVersion: { type: Number, default: 0 },
   boostedUntil: { type: Date },
 });
 
-// Add 2dsphere index for geospatial queries
 userSchema.index({ location: '2dsphere' });
 
 export default mongoose.model('User', userSchema);
