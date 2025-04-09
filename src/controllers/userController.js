@@ -43,39 +43,26 @@ import { uploadToCloudinary } from '../utils/cloudinary.js';
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
  */
-
 export const getProfiles = asyncHandler(async (req) => {
-  const {
-    lat, lng, maxDistance = 50, minAge = 18, maxAge = 100, gender = 'all',
-    interests, preferences = 'all', ethnicity, education, smoking,
-  } = req.query;
-
-  if (!lat || !lng) throw new ApiError(400, 'Latitude and longitude are required');
+  const { lat, lng, maxDistance = 50, minAge = 18, maxAge = 100, gender, interests, preferences, ethnicity, education, smoking } = req.query;
+  const user = await User.findById(req.userId);
+  if (!user) throw new ApiError(404, 'User not found');
 
   const query = {
     _id: { $ne: req.userId },
     hiatus: false,
-    location: {
-      $near: {
-        $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
-        $maxDistance: parseFloat(maxDistance) * 1000, // km to meters
-      },
-    },
-    age: { $gte: parseInt(minAge), $lte: parseInt(maxAge) },
+    location: { $near: { $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] }, $maxDistance: maxDistance * 1000 } },
+    age: { $gte: minAge, $lte: maxAge },
   };
-
-  if (gender !== 'all') query.gender = gender;
+  if (gender) query.gender = gender;
   if (interests) query.interests = { $in: interests.split(',') };
-  if (preferences !== 'all') query.preferences = preferences;
+  if (preferences) query.preferences = preferences;
   if (ethnicity) query.ethnicity = ethnicity;
   if (education) query.education = education;
   if (smoking !== undefined) query.smoking = smoking === 'true';
 
-  const users = await User.find(query).sort({ boostedUntil: -1 });
-  const currentUser = await User.findById(req.userId);
-  currentUser.views += 1;
-  await currentUser.save();
-  return new ApiResponse(200, users, 'Profiles retrieved successfully');
+  const profiles = await User.find(query).limit(10);
+  return new ApiResponse(200, profiles, 'Profiles retrieved successfully');
 });
 
 /**
