@@ -3,6 +3,82 @@ import { uploadToCloudinary } from '../utils/cloudinary.js';
 import { sendEmail } from '../utils/email.js';
 import crypto from 'crypto';
 
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - name
+ *               - phone
+ *               - prompt
+ *               - lat
+ *               - lng
+ *               - age
+ *               - gender
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: User's password (minimum 8 characters)
+ *               name:
+ *                 type: string
+ *                 description: User's full name
+ *               phone:
+ *                 type: string
+ *                 description: User's phone number
+ *               prompt:
+ *                 type: string
+ *                 maxLength: 50
+ *                 description: User's profile prompt (max 50 characters)
+ *               lat:
+ *                 type: number
+ *                 description: Latitude of user's location
+ *               lng:
+ *                 type: number
+ *                 description: Longitude of user's location
+ *               age:
+ *                 type: integer
+ *                 minimum: 18
+ *                 description: User's age (must be 18 or older)
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, nonbinary]
+ *                 description: User's gender
+ *               interests:
+ *                 type: string
+ *                 description: Comma-separated list of user's interests (optional)
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *                 description: User's profile photo (optional)
+ *     responses:
+ *       201:
+ *         description: User registered successfully, verification email sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       400:
+ *         description: Bad request (e.g., user already exists, invalid input)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
 export const register = asyncHandler(async (req) => {
   const { email, password, name, phone, prompt, lat, lng, age, gender, interests } = req.body;
   const existingUser = await User.findOne({ email });
@@ -25,7 +101,7 @@ export const register = asyncHandler(async (req) => {
     interests: interests ? interests.split(',') : [],
     photoURL,
     emailVerificationToken: crypto.randomBytes(32).toString('hex'),
-    emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+    emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
   });
 
   await user.save();
@@ -43,6 +119,50 @@ export const register = asyncHandler(async (req) => {
   return new ApiResponse(201, { token, user }, 'User registered successfully. Please verify your email.');
 });
 
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Log in an existing user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: User's password
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       403:
+ *         description: Email not verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
 export const login = asyncHandler(async (req) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
@@ -125,7 +245,7 @@ export const forgotPassword = asyncHandler(async (req) => {
 
   const resetToken = crypto.randomBytes(32).toString('hex');
   user.passwordResetToken = resetToken;
-  user.passwordResetExpires = Date.now() + 60 * 60 * 1000;
+  user.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
   await user.save();
 
   const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password?token=${resetToken}`;
@@ -182,7 +302,7 @@ export const resetPassword = asyncHandler(async (req) => {
   user.password = await bcrypt.hash(password, 12);
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
-  user.tokenVersion += 1;
+  user.tokenVersion += 1; // Invalidate existing JWTs
   await user.save();
 
   winston.info(`Password reset for user: ${user.email}`);
