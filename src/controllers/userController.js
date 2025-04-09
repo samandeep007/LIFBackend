@@ -5,23 +5,11 @@ import { uploadToCloudinary } from '../utils/cloudinary.js';
  * @swagger
  * /api/users/profiles:
  *   get:
- *     summary: Get filtered user profiles
+ *     summary: Get user profiles based on filters
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: query
- *         name: lat
- *         schema:
- *           type: number
- *         required: true
- *         description: Latitude
- *       - in: query
- *         name: lng
- *         schema:
- *           type: number
- *         required: true
- *         description: Longitude
  *       - in: query
  *         name: maxDistance
  *         schema:
@@ -30,45 +18,23 @@ import { uploadToCloudinary } from '../utils/cloudinary.js';
  *       - in: query
  *         name: minAge
  *         schema:
- *           type: number
+ *           type: integer
  *         description: Min age (default: 18)
  *       - in: query
  *         name: maxAge
  *         schema:
- *           type: number
+ *           type: integer
  *         description: Max age (default: 100)
  *       - in: query
  *         name: gender
  *         schema:
  *           type: string
- *           enum: [male, female, nonbinary, all]
  *         description: Gender (default: all)
- *       - in: query
- *         name: interests
- *         schema:
- *           type: string
- *         description: Comma-separated interests
  *       - in: query
  *         name: preferences
  *         schema:
  *           type: string
- *           enum: [long-term, casual, intimacy, all]
  *         description: Preference (default: all)
- *       - in: query
- *         name: ethnicity
- *         schema:
- *           type: string
- *         description: Ethnicity
- *       - in: query
- *         name: education
- *         schema:
- *           type: string
- *         description: Education level
- *       - in: query
- *         name: smoking
- *         schema:
- *           type: boolean
- *         description: Smoking preference
  *     responses:
  *       200:
  *         description: Profiles retrieved successfully
@@ -77,6 +43,7 @@ import { uploadToCloudinary } from '../utils/cloudinary.js';
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
  */
+
 export const getProfiles = asyncHandler(async (req) => {
   const {
     lat, lng, maxDistance = 50, minAge = 18, maxAge = 100, gender = 'all',

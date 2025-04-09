@@ -18,6 +18,7 @@ import {
 } from './lib.js';
 import typeDefs from './graphql/schema.js';
 import resolvers from './graphql/resolvers.js';
+import cookieParser from 'cookie-parser';
 
 dotenv.config({ path: '../.env' });
 
@@ -35,10 +36,13 @@ const upload = multer({ storage });
 app.use(helmet({ contentSecurityPolicy: process.env.NODE_ENV === 'production' }));
 app.use(cors({ origin: process.env.NODE_ENV === 'production' ? 'https://your-frontend.com' : '*', credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(mongoSanitize());
 app.use(rateLimitPerUser);
 const csrfProtection = csurf({ cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production' } });
 app.use(csrfProtection);
+
+mongoose.set('strictQuery', true); // Enforce strict queries now
 
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => winston.info('MongoDB connected'))
@@ -74,6 +78,7 @@ const server = new ApolloServer({
   context: ({ req }) => ({ req }),
   introspection: process.env.NODE_ENV !== 'production',
   playground: process.env.NODE_ENV !== 'production',
+  cache: 'bounded',
 });
 await server.start();
 server.applyMiddleware({ app, path: '/graphql' });
