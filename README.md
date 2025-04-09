@@ -2,10 +2,10 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-v18.x-green)
 ![GraphQL](https://img.shields.io/badge/GraphQL-v16.x-purple)
-![MongoDB](https://img.shields.io/badge/MongoDB-v6.x-blue)
+![MongoDB](https://img.shields.io/badge/MongoDB-v7.x-blue)
 ![Swagger](https://img.shields.io/badge/Swagger-OpenAPI%203.0-brightgreen)
 
-The backend for "L.I.F - Love Is Free" is a Node.js application built with Express, Apollo Server (GraphQL), MongoDB, Cloudinary, and Socket.IO. It provides a robust API for a dating app with advanced user filtering, location-based search, messaging with notifications, audio/video calling, safety features, and real-time subscriptions.
+The backend for "L.I.F - Love Is Free" is a Node.js application built with Express, Apollo Server (GraphQL), MongoDB, Cloudinary, and WebSockets. It powers a modern dating app with user authentication, location-based matching, real-time messaging, audio/video calls, safety features, and comprehensive API documentation via Swagger and GraphQL.
 
 ---
 
@@ -32,19 +32,20 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
 
 ## Features
 - **Core Features**:
+  - User registration with email verification
+  - Secure login with JWT and password reset functionality
   - Free messaging and photo viewing
   - Improved matchmaking with bio (100 chars) and prompt (50 chars)
   - Location-based search with customizable radius
-  - Comprehensive filters: age, gender, interests, relationship preferences, ethnicity, education, smoking
+  - Filters: age, gender, interests, preferences, ethnicity, education, smoking
   - Preferences: long-term, casual, intimacy
-  - Confessions sent to random users
-  - Auto-delete unread messages after 5 days
-  - Ghosting stats and detailed user insights
-  - Swipe up for "maybe" and undo last swipe
+  - Simplified liking system: swipe right (like), swipe up (maybe)
+  - "Maybe" list and undo last swipe (within 24 hours)
   - Hiatus mode to pause profile visibility
-  - Update and delete user profiles
-  - Real-time message notifications
+  - Profile updates and deletion
+  - Real-time messaging with notifications
   - Audio/video calling via WebRTC
+  - User stats: views, likes, matches, response time, ghosting
 
 - **Safety Features**:
   - Profile verification with simulated facial recognition
@@ -58,20 +59,22 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
   - Enhanced visibility for boosted profiles
 
 - **Technical Features**:
-  - Dual API: REST (Swagger-documented) and GraphQL with real-time subscriptions
+  - Dual API: REST (Swagger-documented) and GraphQL with subscriptions
   - MongoDB with geospatial indexing for location queries
-  - Cloudinary for photo storage with Multer for temp uploads
-  - Socket.IO for WebRTC signaling and real-time updates
+  - Cloudinary for photo storage with Multer for uploads
+  - WebSocket support for real-time updates (GraphQL subscriptions)
+  - Email integration for verification and password resets
   - Standardized error and response handling
-  - Rate limiting, CSRF protection, and security middleware
+  - Security: rate limiting, CSRF protection, Helmet, MongoDB sanitization
 
 ---
 
 ## Prerequisites
 - **Node.js**: v18.x or higher
 - **npm**: v9.x or higher
-- **MongoDB**: Local instance or MongoDB Atlas (with geospatial support)
+- **MongoDB**: v7.x (local or MongoDB Atlas with geospatial support)
 - **Cloudinary Account**: For photo storage
+- **Email Service**: SMTP provider (e.g., Gmail) for verification/reset emails
 - **Git**: For version control
 
 ---
@@ -89,7 +92,7 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
    ```
 
 3. **Set Up Environment Variables**:
-   Create a `.env` file in the root directory and configure it (see [Environment Variables](#environment-variables)).
+   Create a `.env` file in the root directory (see [Environment Variables](#environment-variables)).
 
 4. **Create Temporary Storage**:
    ```bash
@@ -102,58 +105,59 @@ The backend for "L.I.F - Love Is Free" is a Node.js application built with Expre
 ```
 LIFBackend/
 ├── src/
-│   ├── controllers/         # Business logic for auth, users, messages, safety, notifications, calls
-│   │   ├── authController.js
-│   │   ├── userController.js
-│   │   ├── messageController.js
-│   │   ├── safetyController.js
-│   │   ├── notificationController.js
-│   │   ├── callController.js
-│   ├── models/              # Mongoose schemas
-│   │   ├── User.js
-│   │   ├── Message.js
-│   │   ├── Match.js
-│   │   ├── Confession.js
-│   │   ├── SafetyReport.js
-│   │   ├── Notification.js
-│   │   ├── Call.js
-│   ├── middlewares/         # Express middleware
-│   │   ├── authMiddleware.js
-│   │   ├── validateInput.js
-│   │   ├── rateLimitPerUser.js
-│   ├── utils/               # Utility functions and classes
-│   │   ├── cloudinary.js
-│   │   ├── autoDelete.js
-│   │   ├── logger.js
-│   │   ├── apiError.js
-│   │   ├── apiResponse.js
-│   │   ├── asyncHandler.js
+│   ├── controllers/         # API logic
+│   │   ├── authController.js        # Auth endpoints (register, login, etc.)
+│   │   ├── userController.js        # User management and matching
+│   │   ├── messageController.js     # Messaging and confessions
+│   │   ├── safetyController.js      # Safety features
+│   │   ├── notificationController.js # Notifications
+│   │   ├── callController.js        # Audio/video calls
 │   ├── graphql/             # GraphQL schema and resolvers
 │   │   ├── schema.js
 │   │   ├── resolvers.js
+│   ├── models/              # Mongoose schemas
+│   │   ├── User.js
+│   │   ├── Like.js
+│   │   ├── Call.js
+│   │   ├── Confession.js
+│   │   ├── Match.js
+│   │   ├── Message.js
+│   │   ├── Notification.js
+│   │   ├── SafetyReport.js
+│   ├── utils/               # Utility functions
+│   │   ├── email.js         # Email sending
+│   │   ├── apiError.js
+│   │   ├── apiResponse.js
+│   │   ├── asyncHandler.js
+│   │   ├── autoDelete.js
+│   │   ├── cloudinary.js
+│   │   ├── logger.js
+│   ├── app.js               # Express and Apollo setup
 │   ├── lib.js               # Centralized imports/exports
-│   ├── app.js               # Express and Apollo Server setup
 │   ├── swagger.js           # Swagger configuration
+│   ├── index.js             # Server entry point
 ├── public/
-│   ├── temp/                # Temporary storage for Multer uploads
+│   ├── temp/                # Temporary file storage for uploads
 ├── .env                     # Environment variables
-├── index.js                 # Entry point
-├── package.json             # Project metadata and dependencies
+├── package.json             # Dependencies and scripts
 ├── README.md                # This file
 ```
 
 ---
 
 ## Environment Variables
-Create a `.env` file in the root directory with:
+Create a `.env` file with:
 ```
 PORT=5000
-MONGO_URI=mongodb://localhost:27017/LIFDB
+MONGO_URI=mongodb://localhost:27017/lif
 JWT_SECRET=your-very-long-random-secret-key-32-chars-min
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
-CSRF_SECRET=your-csrf-secret-key
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
 NODE_ENV=development
 ```
 
@@ -164,167 +168,219 @@ NODE_ENV=development
    ```bash
    npm start
    ```
-   - Uses `nodemon` for auto-reloading in development.
-   - Server runs at `http://localhost:5000`.
+   - Runs on `http://localhost:5000` (or your `PORT`).
    - REST API base: `/api`
-   - GraphQL: `/graphql`
+   - GraphQL endpoint: `/graphql`
    - WebSocket subscriptions: `ws://localhost:5000/graphql`
    - Swagger UI: `/api-docs`
 
 2. **Test the API**:
-   - Use Swagger UI at `http://localhost:5000/api-docs` for REST endpoints.
-   - Use a GraphQL client (e.g., Postman, GraphiQL) for `/graphql`.
+   - Swagger UI: `http://localhost:5000/api-docs`
+   - GraphQL: Use a client like GraphiQL or Postman at `http://localhost:5000/graphql`
 
 ---
 
 ## API Documentation
 
 ### Swagger UI
-Access at `http://localhost:5000/api-docs`.
+- Access: `http://localhost:5000/api-docs`
+- Fully documented REST endpoints for auth, users, messages, and safety.
 
 ### REST Endpoints
-- **Auth**: Unchanged
-- **Users**: Unchanged
-- **Messages**: Unchanged
-- **Safety**: Unchanged
+- **Auth**:
+  - `POST /api/auth/register`: Register with email verification
+  - `POST /api/auth/login`: Login with JWT
+  - `GET /api/auth/verify-email`: Verify email with token
+  - `POST /api/auth/forgot-password`: Request password reset
+  - `POST /api/auth/reset-password`: Reset password with token
+- **Users**:
+  - `GET /api/users/profiles`: Fetch profiles with filters
+  - `PUT /api/users/profile`: Update profile
+  - `DELETE /api/users/profile`: Delete profile
+  - `POST /api/users/like`: Like or mark as maybe
+  - `GET /api/users/maybe-likes`: Get maybe list
+  - `POST /api/users/undo`: Undo last swipe
+  - `GET /api/users/stats`: Get user stats
+  - `POST /api/users/hiatus`: Toggle hiatus
+  - `POST /api/users/boost`: Boost profile
+- **Messages** & **Safety**: (Unchanged from original)
 
 ### GraphQL Queries
-- **notifications(userId)**: Retrieve user notifications.
+- `profiles(lat, lng, maxDistance, minAge, maxAge, gender, interests, preferences, ethnicity, education, smoking)`: Fetch filtered profiles
   ```graphql
   query {
-    notifications(userId: "user-id") {
-      id
-      type
-      message
-      read
-      createdAt
+    profiles(lat: 40.7128, lng: -74.0060, maxDistance: 50) {
+      data {
+        id
+        name
+        photoURL
+        bio
+        age
+      }
     }
   }
   ```
-- **callHistory(userId)**: Retrieve call history.
+- `maybeLikes`: Get user’s maybe list
   ```graphql
   query {
-    callHistory(userId: "user-id") {
-      id
-      caller { name }
-      receiver { name }
-      status
-      type
-      startTime
-      endTime
+    maybeLikes {
+      data {
+        id
+        name
+        photoURL
+      }
+    }
+  }
+  ```
+- `stats`: Get user statistics
+  ```graphql
+  query {
+    stats {
+      data {
+        views
+        likesGiven
+        likesReceived
+        matches
+      }
     }
   }
   ```
 
 ### GraphQL Mutations
-- **markNotificationRead(id)**: Mark a notification as read.
+- `register(email, password, name, phone, prompt, lat, lng, age, gender, interests)`: Register a user
   ```graphql
   mutation {
-    markNotificationRead(id: "notification-id") {
+    register(email: "test@example.com", password: "12345678", name: "Test", phone: "1234567890", prompt: "Hi!", lat: 40.7128, lng: -74.0060, age: 25, gender: "male") {
       statusCode
-      success
       message
       data {
-        id
-        read
+        token
+        user { id }
       }
     }
   }
   ```
-- **initiateCall(receiverId, type)**: Start an audio/video call.
+- `login(email, password)`: Log in
   ```graphql
   mutation {
-    initiateCall(receiverId: "user-id", type: "video") {
+    login(email: "test@example.com", password: "12345678") {
       statusCode
-      success
       message
       data {
-        id
-        caller { id }
-        receiver { id }
-        status
-        type
+        token
+        user { id }
       }
     }
   }
   ```
-- **acceptCall(callId)**: Accept a call.
+- `verifyEmail(token)`: Verify email
   ```graphql
   mutation {
-    acceptCall(callId: "call-id") {
+    verifyEmail(token: "your-token") {
       statusCode
-      success
+      message
+    }
+  }
+  ```
+- `forgotPassword(email)`: Request password reset
+  ```graphql
+  mutation {
+    forgotPassword(email: "test@example.com") {
+      statusCode
+      message
+    }
+  }
+  ```
+- `resetPassword(token, password)`: Reset password
+  ```graphql
+  mutation {
+    resetPassword(token: "your-token", password: "newpassword123") {
+      statusCode
+      message
+    }
+  }
+  ```
+- `likeProfile(targetId, direction)`: Like or maybe a profile
+  ```graphql
+  mutation {
+    likeProfile(targetId: "user-id", direction: "right") {
+      statusCode
       message
       data {
-        id
-        status
-        startTime
+        isMatch
       }
     }
   }
   ```
-- **rejectCall(callId)**: Reject a call.
+- `undoLastSwipe`: Undo last swipe
   ```graphql
   mutation {
-    rejectCall(callId: "call-id") {
+    undoLastSwipe {
       statusCode
-      success
       message
       data {
-        id
-        status
+        undoneUser { id name }
       }
     }
   }
   ```
-- **endCall(callId)**: End a call.
+- `toggleHiatus`: Toggle hiatus mode
   ```graphql
   mutation {
-    endCall(callId: "call-id") {
+    toggleHiatus {
       statusCode
-      success
       message
-      data {
-        id
-        status
-        endTime
-      }
+      data
+    }
+  }
+  ```
+- `boostProfile`: Boost profile visibility
+  ```graphql
+  mutation {
+    boostProfile {
+      statusCode
+      message
     }
   }
   ```
 
 ### GraphQL Subscriptions
-- **messageReceived(receiverId)**: Real-time message updates.
+- `matchCreated`: Real-time match notifications
+  ```graphql
+  subscription {
+    matchCreated {
+      id
+      users { id name }
+      createdAt
+    }
+  }
+  ```
+- `messageReceived(receiverId)`: Real-time messages
   ```graphql
   subscription {
     messageReceived(receiverId: "user-id") {
       id
       text
-      sender { id }
-      receiver { id }
+      sender { id name }
     }
   }
   ```
-- **notificationReceived(userId)**: Real-time notifications.
+- `notificationReceived(userId)`: Real-time notifications
   ```graphql
   subscription {
     notificationReceived(userId: "user-id") {
       id
       type
       message
-      read
-      createdAt
     }
   }
   ```
-- **callInitiated(receiverId)**: Real-time call initiation.
+- `callInitiated(receiverId)`: Real-time call initiation
   ```graphql
   subscription {
     callInitiated(receiverId: "user-id") {
       id
       caller { id name }
-      receiver { id name }
-      status
       type
     }
   }
@@ -333,41 +389,43 @@ Access at `http://localhost:5000/api-docs`.
 ---
 
 ## Error Handling
-- Uses `ApiError` class with `statusCode`, `status`, `message`, and `isOperational`.
+- Custom `ApiError` class with `statusCode`, `success`, `message`, and optional `data`.
 
 ---
 
 ## Response Format
 ```json
 {
-  "statusCode": Int,
-  "success": Boolean,
-  "message": String,
-  "data": JSON
+  "statusCode": 200,
+  "success": true,
+  "message": "Operation successful",
+  "data": {}
 }
 ```
 
 ---
 
 ## Dependencies
-- **Core**: `express`, `apollo-server-express`, `graphql`, `mongoose`, `socket.io`
-- **Security**: `helmet`, `express-mongo-sanitize`, `csurf`, `express-rate-limit`
-- **Utilities**: `jsonwebtoken`, `bcryptjs`, `dotenv`, `winston`
-- **File Handling**: `multer`, `cloudinary`
-- **Development**: `nodemon`
-- **GraphQL Tools**: `@graphql-tools/schema`, `subscriptions-transport-ws`, `graphql-subscriptions`, `graphql-ws`
-- **Swagger**: `swagger-jsdoc`, `swagger-ui-express`
+- **Core**: `express`, `apollo-server-express`, `graphql`, `mongoose`, `ws`
+- **Auth**: `jsonwebtoken`, `bcryptjs`, `nodemailer`
+- **Storage**: `multer`, `cloudinary`
+- **Security**: `helmet`, `express-mongo-sanitize`, `csurf`
+- **GraphQL**: `@graphql-tools/schema`, `graphql-subscriptions`, `graphql-ws`
+- **Docs**: `swagger-jsdoc`, `swagger-ui-express`
+- **Utils**: `dotenv`, `winston`
+
+Run `npm install` to install all dependencies listed in `package.json`.
 
 ---
 
 ## Contributing
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/your-feature`).
-3. Commit changes (`git commit -m "Add your feature"`).
-4. Push to the branch (`git push origin feature/your-feature`).
+1. Fork the repo.
+2. Create a branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -m "Add your feature"`
+4. Push: `git push origin feature/your-feature`
 5. Open a pull request.
 
 ---
 
 ## License
-This project is licensed under the MIT License.
+MIT License
