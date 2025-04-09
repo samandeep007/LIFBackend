@@ -1,22 +1,24 @@
-import { Message, Confession, User, winston, pubsub, ApiError, ApiResponse, asyncHandler, notificationController } from '../lib.js';
+import { Message, Confession, User, winston, pubsub, ApiError, ApiResponse, asyncHandler, notificationController, mongoose } from '../lib.js';
+import { uploadToCloudinary } from '../utils/cloudinary.js';
 
 /**
  * @swagger
  * /api/messages:
  *   post:
- *     summary: Send a message
+ *     summary: Send a message (text or image)
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               receiverId: { type: string }
  *               text: { type: string }
+ *               image: { type: string, format: binary }
  *     responses:
  *       200:
  *         description: Message sent successfully
@@ -27,17 +29,30 @@ import { Message, Confession, User, winston, pubsub, ApiError, ApiResponse, asyn
  */
 export const sendMessage = asyncHandler(async (req) => {
   const { receiverId, text } = req.body;
-  if (!text.trim()) throw new ApiError(400, 'Message text cannot be empty');
-  const message = new Message({ sender: req.userId, receiver: receiverId, text });
+  const file = req.file; // Expect file from multipart/form-data
+
+  if (!text?.trim() && !file) throw new ApiError(400, 'Message must contain text or an image');
+
+  let mediaURL;
+  if (file) {
+    mediaURL = await uploadToCloudinary(file.path, { folder: 'lif_messages' });
+  }
+
+  const message = new Message({
+    sender: req.userId,
+    receiver: receiverId,
+    text: text || '',
+    mediaURL,
+  });
   await message.save();
-  winston.info(`Message sent from ${req.userId} to ${receiverId}`);
+  winston.info(`Message sent from ${req.userId} to ${receiverId}${file ? ' with image' : ''}`);
   pubsub.publish('MESSAGE_RECEIVED', { messageReceived: message });
 
   const sender = await User.findById(req.userId);
   await notificationController.createNotification({
     userId: receiverId,
     type: 'message',
-    message: `New message from ${sender.name}`,
+    message: `New message from ${sender.name}${file ? ' (with image)' : ''}`,
   });
 
   return new ApiResponse(200, message, 'Message sent successfully');
@@ -73,6 +88,136 @@ export const getConversation = asyncHandler(async (req) => {
     ],
   }).sort('timestamp');
   return new ApiResponse(200, messages, 'Conversation retrieved successfully');
+});
+
+/**
+ * @swagger
+ * /api/messages/inbox:
+ *   get:
+ *     summary: Get all conversations for the user (inbox)
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Inbox retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+export const getInbox = asyncHandler(async (req) => {
+  const userId = req.userId;
+  const conversations = await Message.aggregate([
+    {
+      $match: {
+        $or: [{ sender: mongoose.Types.ObjectId(userId) }, { receiver: mongoose.Types.ObjectId(userId) }],
+      },
+    },
+    {
+      $sort: { timestamp: -1 },
+    },
+    {
+      $group: {
+        _id: {
+          $cond: [{ $eq: ['$sender', mongoose.Types.ObjectId(userId)] }, '$receiver', '$sender'],
+        },
+        lastMessage: { $first: '$text' },
+        lastMediaURL: { $first: '$mediaURL' }, // Include last image if present
+        timestamp: { $first: '$timestamp' },
+        unreadCount: {
+          $sum: { $cond: [{ $and: [{ $eq: ['$receiver', mongoose.Types.ObjectId(userId)] }, { $eq: ['$read', false] }] }, 1, 0] },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+    {
+      $project: {
+        userId: '$_id',
+        name: '$user.name',
+        photoURL: '$user.photoURL',
+        lastMessage: 1,
+        lastMediaURL: 1,
+        timestamp: 1,
+        unreadCount: 1,
+      },
+    },
+  ]);
+  return new ApiResponse(200, conversations, 'Inbox retrieved successfully');
+});
+
+/**
+ * @swagger
+ * /api/messages/conversation/{userId}:
+ *   delete:
+ *     summary: Delete a conversation with a user
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Conversation deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+export const deleteConversation = asyncHandler(async (req) => {
+  const { userId: otherUserId } = req.params;
+  await Message.deleteMany({
+    $or: [
+      { sender: req.userId, receiver: otherUserId },
+      { sender: otherUserId, receiver: req.userId },
+    ],
+  });
+  winston.info(`Conversation between ${req.userId} and ${otherUserId} deleted`);
+  return new ApiResponse(200, null, 'Conversation deleted successfully');
+});
+
+/**
+ * @swagger
+ * /api/messages/conversation/{userId}/read:
+ *   put:
+ *     summary: Mark messages from a user as read
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Messages marked as read
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+export const markMessagesRead = asyncHandler(async (req) => {
+  const { userId: senderId } = req.params;
+  await Message.updateMany(
+    { sender: senderId, receiver: req.userId, read: false },
+    { read: true, readAt: new Date() }
+  );
+  winston.info(`Messages from ${senderId} to ${req.userId} marked as read`);
+  return new ApiResponse(200, null, 'Messages marked as read');
 });
 
 /**

@@ -42,10 +42,21 @@ const typeDefs = gql`
     sender: User!
     receiver: User!
     text: String!
+    mediaURL: String
     timestamp: String!
     read: Boolean!
     readAt: String
     isConfession: Boolean!
+  }
+
+  type Conversation {
+    userId: ID!
+    name: String!
+    photoURL: String
+    lastMessage: String!
+    lastMediaURL: String
+    timestamp: String!
+    unreadCount: Int!
   }
 
   type Match {
@@ -114,6 +125,7 @@ const typeDefs = gql`
     profiles(lat: Float!, lng: Float!, maxDistance: Float, minAge: Int, maxAge: Int, gender: String, interests: String, preferences: String, ethnicity: String, education: String, smoking: Boolean): ApiResponse!
     stats: ApiResponse!
     conversation(userId: ID!): ApiResponse!
+    inbox: ApiResponse!
     safetyGuidelines: ApiResponse!
     notifications(userId: ID!): ApiResponse!
     callHistory(userId: ID!): ApiResponse!
@@ -132,8 +144,10 @@ const typeDefs = gql`
     undoLastSwipe: ApiResponse!
     toggleHiatus: ApiResponse!
     boostProfile: ApiResponse!
-    sendMessage(receiverId: ID!, text: String!): ApiResponse!
+    sendMessage(receiverId: ID!, text: String, image: Upload): ApiResponse!
     sendConfession(text: String!): ApiResponse!
+    deleteConversation(userId: ID!): ApiResponse!
+    markMessagesRead(senderId: ID!): ApiResponse!
     reportSuspiciousActivity(reportedUserId: ID!, location: String, reason: String!): ApiResponse!
     verifyLocation(location: String!): ApiResponse!
     confirmIdentity: ApiResponse!
@@ -152,6 +166,7 @@ const typeDefs = gql`
   }
 
   scalar JSON
+  scalar Upload
 `;
 
 export default typeDefs;

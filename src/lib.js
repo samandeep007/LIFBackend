@@ -37,7 +37,7 @@ import { sendEmail } from './utils/email.js';
 const pubsub = new PubSub();
 
 export {
-  mongoose,
+  mongoose, // Ensure mongoose is exported for use in controllers
   jwt,
   bcrypt,
   cloudinary,

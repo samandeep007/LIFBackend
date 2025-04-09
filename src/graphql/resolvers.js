@@ -46,6 +46,14 @@ export default {
         return handleError(err);
       }
     },
+    inbox: async (_, __, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await messageController.getInbox({ userId });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
     safetyGuidelines: async () => {
       try {
         return await messageController.getSafetyGuidelines();
@@ -177,8 +185,10 @@ export default {
     },
     sendMessage: async (_, { receiverId, text }, context) => {
       try {
+        await new Promise((resolve) => upload.single('image')(context.req, {}, resolve));
         const { userId } = await authMiddleware(context.req);
-        return await messageController.sendMessage({ userId, body: { receiverId, text } });
+        context.req.body = { receiverId, text };
+        return await messageController.sendMessage({ userId, ...context.req });
       } catch (err) {
         return handleError(err);
       }
@@ -187,6 +197,22 @@ export default {
       try {
         const { userId } = await authMiddleware(context.req);
         return await messageController.sendConfession({ userId, body: { text } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    deleteConversation: async (_, { userId }, context) => {
+      try {
+        const { userId: currentUserId } = await authMiddleware(context.req);
+        return await messageController.deleteConversation({ userId: currentUserId, params: { userId } });
+      } catch (err) {
+        return handleError(err);
+      }
+    },
+    markMessagesRead: async (_, { senderId }, context) => {
+      try {
+        const { userId } = await authMiddleware(context.req);
+        return await messageController.markMessagesRead({ userId, params: { userId: senderId } });
       } catch (err) {
         return handleError(err);
       }

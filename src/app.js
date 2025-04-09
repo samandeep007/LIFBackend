@@ -63,8 +63,11 @@ app.get('/api/users/stats', authMiddleware, userController.getStats);
 app.post('/api/users/hiatus', authMiddleware, userController.toggleHiatus);
 app.post('/api/users/boost', authMiddleware, userController.boostProfile);
 
-app.post('/api/messages', authMiddleware, messageController.sendMessage);
+app.post('/api/messages', authMiddleware, upload.single('image'), messageController.sendMessage);
 app.get('/api/messages/conversation/:userId', authMiddleware, messageController.getConversation);
+app.get('/api/messages/inbox', authMiddleware, messageController.getInbox);
+app.delete('/api/messages/conversation/:userId', authMiddleware, messageController.deleteConversation);
+app.put('/api/messages/conversation/:userId/read', authMiddleware, messageController.markMessagesRead);
 app.post('/api/messages/confession', authMiddleware, messageController.sendConfession);
 app.get('/api/messages/safety-guidelines', messageController.getSafetyGuidelines);
 
